@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuraTune Immersive Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Base Styles */
+        :root {
+            --dark-bg-start: #1a202c;
+            --dark-bg-end: #2d3748;
+            --text-dark: #e2e8f0;
+            --glass-bg-dark: rgba(30, 41, 59, 0.4);
+            --glass-border-dark: rgba(255, 255, 255, 0.1);
+            --accent-purple: #7c3aed;
+            --accent-pink: #ec4899;
+            --accent-cyan: #22d3ee;
+            --glow-color-dark: rgba(124, 58, 237, 0.6); /* Purple glow */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--dark-bg-start), var(--dark-bg-end));
+            color: var(--text-dark);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative; /* Needed for pseudo-element background */
+        }
+
+        /* Frosted Glass Background Effect */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: inherit; /* Inherit the gradient from body */
+            filter: blur(100px); /* Adjust blur intensity for desired effect */
+            z-index: -1;
+            transform: scale(1.1); /* Slightly enlarge to cover blur edges */
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #visualizerCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Modal & Overlay Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 99;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-content {
+            background: var(--glass-bg-dark);
+            border: 1px solid var(--glass-border-dark);
+            padding: 30px;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+            color: var(--text-dark);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.visible .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-content h2 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            background: linear-gradient(to right, var(--accent-purple), var(--accent-pink));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .modal-content p {
+            margin-bottom: 20px;
+            line-height: 1.6;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .modal-content button {
+            background: linear-gradient(45deg, var(--accent-purple), var(--accent-pink));
+            color: white;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 5px 15px rgba(124, 58, 237, 0.4);
+        }
+
+        .modal-content button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.6);
+        }
+
+        /* Loader Styles */
+        #loader .spinner {
+            width: 60px;
+            height: 60px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-top-color: var(--accent-purple);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Main Controls Panel */
+        #controlsPanel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            background: var(--glass-bg-dark);
+            padding: 30px 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border-dark);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            width: 90%;
+            max-width: 650px;
+            pointer-events: all; /* Ensure it's clickable */
+        }
+
+        #controlsPanel.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, -50%) scale(0.9);
+        }
+
+        .visualizer-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(to right, var(--accent-purple), var(--accent-pink), var(--accent-cyan));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            margin-bottom: 0;
+        }
+
+        .panel-credits { /* New class for inline credits */
+            font-size: 0.75rem; /* Smaller font size for credits */
+            color: rgba(255, 255, 255, 0.6); /* Slightly transparent */
+            margin-top: -10px; /* Pull it closer to the title */
+            margin-bottom: 15px; /* Maintain spacing before next element */
+        }
+
+        #playingNow {
+            font-size: 1rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 10px;
+            min-height: 1.5rem;
+        }
+
+        .file-label {
+            background: linear-gradient(45deg, var(--accent-purple), var(--accent-pink));
+            color: white;
+            padding: 15px 35px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 5px 15px rgba(124, 58, 237, 0.4);
+        }
+
+        .file-label:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.6);
+        }
+
+        #audioFile {
+            display: none;
+        }
+
+        /* Audio Player Styling */
+        #audioPlayer {
+            width: 90%;
+            max-width: 700px; /* Made bigger */
+            background: var(--glass-bg-dark); /* Always dark glass */
+            border: 1px solid var(--glass-border-dark); /* Always dark border */
+            border-radius: 20px;
+            padding: 10px 20px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transition: background 0.5s ease, border-color 0.5s ease;
+            margin-top: 15px; /* Add some space below file label */
+        }
+        
+        /* Custom styling for audio player controls for better consistency */
+        /* These styles target the shadow DOM elements of the audio player */
+        #audioPlayer::-webkit-media-controls-panel {
+            background-color: transparent;
+        }
+        #audioPlayer::-webkit-media-controls-current-time-display,
+        #audioPlayer::-webkit-media-controls-time-remaining-display {
+            color: black; /* Changed to black for visibility */
+        }
+        /* Ensure play/pause, volume, and timeline controls are visible */
+        #audioPlayer::-webkit-media-controls-play-button,
+        #audioPlayer::-webkit-media-controls-volume-slider,
+        #audioPlayer::-webkit-media-controls-timeline {
+            filter: invert(0); /* Normal for dark mode, ensures visibility */
+        }
+
+
+        .menu-controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+            width: 100%; /* Ensure it takes full width of its container */
+        }
+
+        .menu-controls select,
+        .menu-controls button {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 15px;
+            border-radius: 50px;
+            color: var(--text-dark);
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+            font-size: 0.9rem;
+            outline: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none; /* Remove default arrow */
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-grow: 1; /* Allow items to grow to fill space */
+            min-width: 120px; /* Minimum width before wrapping */
+        }
+
+        /* Removed background-image for select arrows */
+        .menu-controls select {
+            padding-right: 15px; /* Adjust padding after removing arrow */
+        }
+
+        .menu-controls select option {
+            background-color: var(--dark-bg-end);
+            color: var(--text-dark);
+        }
+
+        .menu-controls select:hover,
+        .menu-controls button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .mode-buttons .active {
+            background: var(--accent-purple);
+            color: white;
+            box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
+        }
+
+        .accessibility-options {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            padding: 5px 15px 5px 5px;
+            flex-grow: 1; /* Allow to grow */
+            min-width: 150px; /* Ensure it doesn't get too small */
+            justify-content: center; /* Center content within the option */
+        }
+
+        .accessibility-options input[type="checkbox"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            position: relative;
+            outline: none;
+            transition: background-color 0.3s, border-color 0.3s;
+            margin-left: 15px;
+        }
+
+        .accessibility-options input[type="checkbox"]:checked {
+            background-color: var(--accent-pink);
+            border-color: var(--accent-pink);
+        }
+
+        .accessibility-options select {
+            background: transparent;
+            border: none;
+            color: var(--text-dark);
+            outline: none;
+            font-size: 0.9rem;
+            margin-left: 5px;
+            padding: 5px;
+            border-radius: 20px;
+        }
+
+        .accessibility-options select.hidden {
+            display: none;
+        }
+
+        /* Pop-up Panels */
+        /* Removed #vibePanel and related styles */
+
+        .close-panel-btn {
+            margin-top: 15px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.3s ease;
+        }
+
+        .close-panel-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Removed original #credits CSS as it's now inline and handled by .panel-credits */
+
+        .hide-ui-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--glass-bg-dark);
+            border: 1px solid var(--glass-border-dark);
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s, opacity 0.5s ease;
+            z-index: 40;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dark);
+        }
+        .hide-ui-button:hover {
+            transform: scale(1.05);
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+    </style>
+</head>
+<body>
+    <div class="container">
+        <canvas id="visualizerCanvas"></canvas>
+
+        <!-- Modals and Overlays -->
+        <div id="seizureWarning" class="modal-overlay visible">
+            <div class="modal-content">
+                <h2>⚠️ Photosensitivity Warning</h2>
+                <p>This experience contains flashing lights and rapidly changing visual patterns that may trigger seizures for people with photosensitive epilepsy. Viewer discretion is advised.</p>
+                <button id="acceptWarning">I Understand, Continue</button>
+            </div>
+        </div>
+
+        <div id="loader" class="modal-overlay">
+            <div class="modal-content">
+                 <div class="spinner"></div>
+                 <p class="mt-4">Loading song and fetching data...</p>
+            </div>
+        </div>
+
+        <!-- Main UI -->
+        <div id="controlsPanel" class="file-input-container">
+            <h2 class="visualizer-title">AuraTune</h2>
+            <p id="playingNow">Select an audio file to begin.</p>
+            <label for="audioFile" class="file-label">SELECT MUSIC</label>
+            <input type="file" id="audioFile" accept="audio/*">
+            <audio id="audioPlayer" controls></audio>
+            <div class="menu-controls">
+                <!-- Removed Vibe Analysis Button -->
+                <select id="themeSelector">
+                    <option value="liquescent">Liquescent</option>
+                    <option value="consoleDreams">Console Dreams</option>
+                    <option value="velocity">Velocity</option>
+                    <option value="theWanderer">The Wanderer</option>
+                    <option value="odyssey">Odyssey</option>
+                    <option value="particleFlow">ParticleFlow</option>
+                </select>
+                <div class="accessibility-options">
+                    <input type="checkbox" id="colorblindMode">
+                    <label for="colorblindMode">Accessible</label>
+                    <select id="colorblindTypeSelector" class="hidden">
+                        <option value="protanomaly">Protanomaly</option>
+                        <option value="deuteranomaly">Deuteranomaly</option>
+                        <option value="tritanomaly">Tritanomaly</option>
+                        <option value="achromatopsia">Achromatopsia</option>
+                    </select>
+                </div>
+            </div>
+            <p class="panel-credits">Created by Garreth</p> <!-- Moved and updated text -->
+        </div>
+
+        <!-- Removed Vibe Panel -->
+        <!-- <div id="vibePanel" class="popup-panel">
+            <p id="vibeText">Analyzing the vibe...</p>
+            <button id="closeVibePanel" class="close-panel-btn">Close</button>
+        </div> -->
+
+        <button id="hideUiButton" class="hide-ui-button">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" style="width:24px; height:24px; color: inherit;">
+                <path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 0-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7.029 7.029 0 0 0 2.79-.588M5.21 3.088A7.028 7.028 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.938 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474L5.21 3.089z"/>
+                <path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829l-2.83-2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12-.708.708z"/>
+            </svg>
+        </button>
+    </div>
+
+    <script>
+        // This console log is here to confirm if the script starts parsing.
+        console.log("AuraTune script parsing initiated.");
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOMContentLoaded event fired."); // Log when DOM is ready
+
+            // DOM Elements
+            const canvas = document.getElementById('visualizerCanvas');
+            const ctx = canvas.getContext('2d');
+            const audioFileInput = document.getElementById('audioFile');
+            const audioPlayer = document.getElementById('audioPlayer');
+            const controlsPanel = document.getElementById('controlsPanel');
+            const playingNowText = document.getElementById('playingNow');
+            const themeSelector = document.getElementById('themeSelector');
+            const colorblindModeCheckbox = document.getElementById('colorblindMode');
+            const colorblindTypeSelector = document.getElementById('colorblindTypeSelector');
+            // const vibeButton = document.getElementById('vibeButton'); // Removed
+            // const vibePanel = document.getElementById('vibePanel'); // Removed
+            // const vibeText = document.getElementById('vibeText'); // Removed
+            // const closeVibePanelBtn = document.getElementById('closeVibePanel'); // Removed
+            const hideUiButton = document.getElementById('hideUiButton');
+            const body = document.body;
+            const seizureWarning = document.getElementById('seizureWarning');
+            const acceptWarningBtn = document.getElementById('acceptWarning');
+            const loader = document.getElementById('loader');
+
+            // App State
+            let audioContext, analyser, source, dataArray, bufferLength;
+            let isAudioContextInitialized = false;
+            let currentTheme = 'liquescent';
+            let isPlaying = false;
+            let colorblindModeActive = false;
+            let colorblindType = 'protanomaly';
+            let darkMode = true; // Always true now
+            let uiHidden = false;
+            let animationFrameId;
+            let currentSongInfo = { artist: '', title: '' };
+            let mouseX = 0, mouseY = 0;
+            let isMouseDown = false;
+
+            // Audio Analysis Data
+            let lastRMS = 0; // For beat detection
+            const BEAT_THRESHOLD_FACTOR = 1.2; // How much louder a beat needs to be than previous RMS
+            const BEAT_DECAY_FACTOR = 0.95; // How quickly the "memory" of previous RMS fades
+
+            // Theme specific variables (initialized within initFunctions)
+            let blobs = [];
+            let consoleDreamsParticles = [];
+            let velocityLines = [];
+            let odysseyParticles = [];
+            let wanderer = {};
+            let flowParticles = [];
+
+            // Color Palettes (simplified for dark mode only)
+            const colorPalettes = {
+                normal: { dark: ['#a855f7', '#ec4899', '#22d3ee', '#fde047', '#84cc16', '#ef4444'] },
+                protanomaly: { dark: ['#8B008B', '#FF69B4', '#00FFFF', '#FFFF00', '#008000', '#FF4500'] },
+                deuteranomaly: { dark: ['#800080', '#FF1493', '#00BFFF', '#FFD700', '#ADFF2F', '#FF0000'] },
+                tritanomaly: { dark: ['#8B008B', '#FF00FF', '#00FF7F', '#FFD700', '#008000', '#FF4500'] },
+                achromatopsia: { dark: ['#333333', '#666666', '#999999', '#CCCCCC', '#AAAAAA', '#777777'] }
+            };
+
+            // Perlin Noise for ParticleFlow (Corrected and complete implementation)
+            const p = new Array(512).fill(0).map((_, i) => i % 256);
+            for (let i = 255; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [p[i], p[j]] = [p[j], p[i]];
+            }
+            function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+            function lerp(t, a, b) { return a + t * (b - a); }
+            function grad(hash, x, y, z) {
+                const h = hash & 15;
+                const u = h < 8 ? x : y;
+                const v = h < 4 ? y : h == 12 || h == 14 ? x : z;
+                return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+            }
+            function noise(x, y, z) {
+                const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+                x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+                const u = fade(x), v = fade(y), w = fade(z);
+                const A = p[X] + Y, AA = p[A] + Z, AB = p[A + 1] + Z;
+                const B = p[X + 1] + Y, BA = p[B] + Z, BB = p[B + 1] + Z;
+
+                // Corrected Perlin noise return statement
+                return lerp(w, // Interpolate along Z axis
+                            lerp(v, // Interpolate along Y axis for Z
+                                 lerp(u, // Interpolate along X axis for Y,Z
+                                      grad(p[AA], x, y, z),
+                                      grad(p[BA], x - 1, y, z)
+                                 ),
+                                 lerp(u, // Interpolate along X axis for Y+1,Z
+                                      grad(p[AB], x, y - 1, z),
+                                      grad(p[BB], x - 1, y - 1, z)
+                                 )
+                            ),
+                            lerp(v, // Interpolate along Y axis for Z+1
+                                 lerp(u, // Interpolate along X axis for Y,Z+1
+                                      grad(p[AA + 1], x, y, z - 1),
+                                      grad(p[BA + 1], x - 1, y, z - 1)
+                                 ),
+                                 lerp(u, // Interpolate along X axis for Y+1,Z+1
+                                      grad(p[AB + 1], x, y - 1, z - 1),
+                                      grad(p[BB + 1], x - 1, y - 1, z - 1)
+                                 )
+                            )
+                       );
+            }
+            console.log("Perlin noise functions defined."); // Log after defining Perlin noise functions
+
+            /**
+             * Generates a dynamic HSL color based on audio features and current mode.
+             * @param {number} bass - Bass frequency intensity (0-255).
+             * @param {number} mid - Mid frequency intensity (0-255).
+             * @param {number} treble - Treble frequency intensity (0-255).
+             * @param {number} baseHue - Base hue for the color (0-360).
+             * @param {number} spectralCentroid - Spectral centroid (for perceived brightness/timbre).
+             * @returns {string} HSL color string.
+             */
+            function getDynamicColor(bass, mid, treble, baseHue, spectralCentroid) {
+                if (colorblindModeActive) {
+                    const palette = colorPalettes[colorblindType].dark; // Always use dark palette
+                    const totalIntensity = (bass + mid + treble) / 3;
+                    const colorIndex = Math.floor((totalIntensity / 255) * palette.length);
+                    return palette[Math.min(colorIndex, palette.length - 1)];
+                }
+                
+                let hue = baseHue !== undefined ? baseHue : (Date.now() * 0.01 + ((bass / 255) * 60)) % 360;
+                let saturation = 70 + (mid / 255) * 30; // Keep saturation high for vibrancy
+
+                // Adjust lightness based on treble and spectral Centroid for "brightness"
+                let lightness = 50 + (treble / 255) * 20; 
+                
+                // Further adjust lightness based on spectral Centroid for perceived "brightness"
+                const normalizedCentroid = Math.min(1, spectralCentroid / 5000); 
+                lightness += normalizedCentroid * 10; 
+
+                // Clamp lightness to a reasonable range for dark mode visuals
+                lightness = Math.max(30, Math.min(80, lightness));
+
+                return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            }
+
+            function setCanvasSize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                // Re-initialize theme elements when canvas size changes to adapt
+                // This ensures elements are correctly positioned and sized for the new canvas dimensions
+                if (initFunctions[currentTheme]) {
+                    initFunctions[currentTheme]();
+                }
+            }
+            window.addEventListener('resize', setCanvasSize, false);
+
+            /**
+             * Initializes the Web Audio API and loads the selected audio file.
+             * @param {File} file - The audio file selected by the user.
+             */
+            async function initAudio(file) {
+                loader.classList.add('visible');
+                // Resume audio context if suspended
+                if (audioContext && audioContext.state === 'suspended') {
+                    await audioContext.resume().catch(e => console.error("Failed to resume AudioContext:", e));
+                }
+
+                // If source is already connected, disconnect it to avoid multiple connections
+                if (source) {
+                    source.disconnect();
+                    source = null; // Clear the source reference
+                }
+                
+                // Ensure analyser is initialized before connecting source
+                if (!analyser) {
+                    try {
+                        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        analyser = audioContext.createAnalyser();
+                        analyser.fftSize = 256; // Good balance for visualizers
+                        bufferLength = analyser.frequencyBinCount; // Half of fftSize
+                        dataArray = new Uint8Array(bufferLength);
+                        isAudioContextInitialized = true;
+                        analyser.connect(audioContext.destination); // Connect analyser to destination
+                    } catch (e) {
+                        console.error("Failed to re-initialize AudioContext or Analyser in initAudio:", e);
+                        isAudioContextInitialized = false;
+                        analyser = null;
+                        dataArray = new Uint8Array(0);
+                        bufferLength = 0;
+                        playingNowText.textContent = "Audio features unavailable (Web Audio API error).";
+                        loader.classList.remove('visible');
+                        return; // Exit if audio context cannot be initialized
+                    }
+                }
+
+                source = audioContext.createMediaElementSource(audioPlayer);
+                source.connect(analyser);
+                
+                const filename = file.name.replace(/\.[^/.]+$/, "");
+                const parts = filename.split(' - ');
+                currentSongInfo = parts.length === 2 ? { artist: parts[0].trim(), title: parts[1].trim() } : { artist: '', title: filename.trim() };
+                playingNowText.textContent = `Playing: ${currentSongInfo.artist ? `${currentSongInfo.artist} - ` : ''}${currentSongInfo.title}`;
+
+                const audioPromise = new Promise(resolve => {
+                    audioPlayer.src = URL.createObjectURL(file);
+                    audioPlayer.oncanplaythrough = resolve;
+                });
+
+                await Promise.allSettled([audioPromise]); // Only wait for audio to load
+
+                loader.classList.remove('visible');
+                audioPlayer.play().catch(e => {
+                    console.error("Playback failed:", e);
+                    playingNowText.textContent = "Playback failed. Please try another file.";
+                });
+                document.querySelector('.file-label').textContent = "CHANGE MUSIC";
+                isPlaying = true;
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                animate();
+            }
+
+            // --- THEME INITIALIZATION FUNCTIONS ---
+            // These functions set up the initial state of particles/elements for each theme.
+            const initFunctions = {
+                liquescent: () => {
+                    blobs = Array.from({ length: 8 }, () => ({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        radius: Math.random() * 100 + 80,
+                        baseRadius: Math.random() * 100 + 80,
+                        vx: (Math.random() - 0.5) * 1.5,
+                        vy: (Math.random() - 0.5) * 1.5,
+                        colorHue: Math.random() * 360
+                    }));
+                },
+                consoleDreams: () => {
+                    consoleDreamsParticles = Array.from({ length: 120 }, () => ({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        size: Math.random() * 5 + 5, // Made circles bigger (5-10px)
+                        speedX: (Math.random() - 0.5) * 2,
+                        speedY: (Math.random() - 0.5) * 2,
+                        alpha: Math.random() * 0.7 + 0.3,
+                        colorHue: Math.random() * 360
+                    }));
+                },
+                velocity: () => {
+                    velocityLines = Array.from({ length: 150 }, () => ({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        length: Math.random() * 80 + 20,
+                        angle: Math.random() * Math.PI * 2,
+                        speed: Math.random() * 2 + 1,
+                        alpha: 0.8
+                    }));
+                },
+                odyssey: () => {
+                    odysseyParticles = Array.from({ length: 100 }, () => ({
+                        x: canvas.width / 2,
+                        y: canvas.height / 2,
+                        angle: Math.random() * Math.PI * 2,
+                        radius: Math.random() * 5 + 1,
+                        speed: Math.random() * 0.5 + 0.1,
+                        alpha: Math.random() * 0.8 + 0.2,
+                        orbitDistance: Math.random() * 100 + 50,
+                        colorHue: Math.random() * 360
+                    }));
+                },
+                theWanderer: () => {
+                    wanderer = {
+                        x: canvas.width / 2,
+                        y: canvas.height / 2,
+                        width: 100,
+                        height: 50,
+                        dx: (Math.random() > 0.5 ? 1 : -1) * (2 + Math.random() * 2),
+                        dy: (Math.random() > 0.5 ? 1 : -1) * (2 + Math.random() * 2),
+                        colorHue: Math.random() * 360,
+                        bounceCount: 0,
+                        lastBounceTime: 0
+                    };
+                },
+                particleFlow: () => {
+                    flowParticles = Array.from({ length: 150 }, () => ({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        directionX: (Math.random() - 0.5) * 2,
+                        directionY: (Math.random() - 0.5) * 2,
+                        baseSize: Math.random() * 3 + 1,
+                        size: Math.random() * 3 + 1,
+                        alpha: 1,
+                        decay: Math.random() * 0.005 + 0.002
+                    }));
+                }
+            };
+
+            // --- HELPER DRAWING FUNCTIONS ---
+
+            /**
+             * Draws a glowing circle.
+             * @param {number} cx - Center X coordinate.
+             * @param {number} cy - Center Y coordinate.
+             * @param {number} radius - Radius of the circle.
+             * @param {string} color - Fill color of the circle.
+             * @param {number} blurAmount - Amount of blur for the shadow.
+             */
+            function drawGlowCircle(cx, cy, radius, color, blurAmount = 10) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.shadowBlur = blurAmount;
+                ctx.shadowColor = color; // Shadow color matches fill color for consistent glow
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // --- THEME DRAWING FUNCTIONS ---
+            // Each function takes audio analysis data and draws the theme.
+
+            /**
+             * Draws the Liquescent (lava lamp) theme.
+             * @param {number} bass - Bass frequency intensity.
+             * @param {number} mid - Mid frequency intensity.
+             * @param {number} treble - Treble frequency intensity.
+             * @param {number} rms - Root Mean Square (overall volume).
+             * @param {number} spectralCentroid - Perceived brightness of sound.
+             * @param {boolean} beatDetected - True if a beat was detected this frame.
+             */
+            function drawLiquescent(bass, mid, treble, rms, spectralCentroid, beatDetected) {
+                // Clear with a slight fade to create trails
+                ctx.fillStyle = 'rgba(26, 32, 44, 0.08)'; // Always dark fade
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Apply a global blur effect to the canvas for the lava lamp feel (Reduced blur)
+                ctx.filter = `blur(8px) contrast(150%)`; // Adjust blur and contrast for desired effect
+
+                blobs.forEach((blob) => {
+                    // Mouse interaction - stronger pull with higher RMS
+                    if (isMouseDown) {
+                        const dx = mouseX - blob.x;
+                        const dy = mouseY - blob.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 250) {
+                            const pullStrength = 0.0005 + (rms / 255) * 0.0005; // Stronger pull with volume
+                            blob.vx += dx * pullStrength;
+                            blob.vy += dy * pullStrength;
+                        }
+                    }
+
+                    // Audio influence on movement and size
+                    blob.vx += (bass / 255 - 0.5) * 0.02 + (rms / 255) * 0.01; // Agitation with bass and overall volume
+                    blob.vy += (mid / 255 - 0.5) * 0.02 + (rms / 255) * 0.01;
+                    blob.vx *= 0.97; // Slightly more drag
+                    blob.vy *= 0.97;
+
+                    blob.x += blob.vx;
+                    blob.y += blob.vy;
+
+                    // Boundary checks (bounce off walls)
+                    if (blob.x < blob.radius || blob.x > canvas.width - blob.radius) blob.vx *= -1;
+                    if (blob.y < blob.radius || blob.y > canvas.height - blob.radius) blob.vy *= -1;
+
+                    // Size influenced by bass and mid
+                    blob.radius = blob.baseRadius + (bass / 255) * 40 + (mid / 255) * 20;
+
+                    // Draw blob with radial gradient for depth
+                    const gradient = ctx.createRadialGradient(blob.x, blob.y, blob.radius * 0.2, blob.x, blob.y, blob.radius);
+                    const color = getDynamicColor(bass, mid, treble, blob.colorHue, spectralCentroid);
+                    gradient.addColorStop(0, color);
+                    gradient.addColorStop(1, `hsla(${blob.colorHue}, 70%, 50%, 0.1)`);
+
+                    ctx.beginPath();
+                    ctx.arc(blob.x, blob.y, blob.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = gradient;
+                    ctx.globalAlpha = 0.8;
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+                ctx.filter = 'none'; // Reset filter for other elements
+            }
+
+            /**
+             * Draws the Console Dreams theme.
+             * @param {number} bass - Bass frequency intensity.
+             * @param {number} mid - Mid frequency intensity.
+             * @param {number} treble - Treble frequency intensity.
+             * @param {number} rms - Root Mean Square (overall volume).
+             * @param {number} spectralCentroid - Perceived brightness of sound.
+             * @param {boolean} beatDetected - True if a beat was detected this frame.
+             */
+            function drawConsoleDreams(bass, mid, treble, rms, spectralCentroid, beatDetected) {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+
+                // Clear with dark fade
+                ctx.fillStyle = 'rgba(26, 32, 44, 0.1)'; // Always dark fade
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.globalCompositeOperation = 'lighter'; // For glowing effect
+
+                // Draw a subtle grid overlay, reacting to bass
+                ctx.strokeStyle = `rgba(100, 100, 100, ${0.1 + (bass / 255) * 0.1})`; // Always dark grid lines
+                ctx.lineWidth = 0.5 + (bass / 255) * 0.5; // Thicker lines with bass
+                const gridSize = 50;
+                for (let x = 0; x < canvas.width; x += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, canvas.height);
+                    ctx.stroke();
+                }
+                for (let y = 0; y < canvas.height; y += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                }
+
+                consoleDreamsParticles.forEach((p, i) => {
+                    // Particles move in a more linear, data-stream like flow
+                    const speedInfluence = 1 + (rms / 255) * 3; // Overall volume influences speed
+                    p.x += p.speedX * speedInfluence;
+                    p.y += p.speedY * speedInfluence;
+
+                    // Wrap around screen
+                    if (p.x < 0) p.x = canvas.width;
+                    if (p.x > canvas.width) p.x = 0;
+                    if (p.y < 0) p.y = canvas.height;
+                    if (p.y > canvas.height) p.y = 0;
+
+                    const size = p.size + (treble / 255) * 3; // Treble influences size
+                    const color = getDynamicColor(bass, mid, treble, p.colorHue, spectralCentroid);
+                    
+                    ctx.globalAlpha = p.alpha;
+                    const glowAmount = 8 + (spectralCentroid / 5000) * 15; // Glow with brightness
+                    drawGlowCircle(p.x, p.y, size, color, glowAmount);
+                });
+
+                // Draw a central glowing pulse
+                const pulseRadius = 10 + (mid / 255) * 20 + (beatDetected ? 15 : 0); // Pulse stronger on beat
+                const pulseColor = getDynamicColor(bass, mid, treble, 250, spectralCentroid);
+                drawGlowCircle(centerX, centerY, pulseRadius, pulseColor, 25 + (beatDetected ? 10 : 0));
+
+                ctx.globalCompositeOperation = 'source-over'; // Reset blend mode
+                ctx.globalAlpha = 1;
+            }
+
+            /**
+             * Draws the Velocity theme.
+             * @param {number} bass - Bass frequency intensity.
+             * @param {number} mid - Mid frequency intensity.
+             * @param {number} treble - Treble frequency intensity.
+             * @param {number} rms - Root Mean Square (overall volume).
+             * @param {number} spectralCentroid - Perceived brightness of sound.
+             * @param {boolean} beatDetected - True if a beat was detected this frame.
+             */
+            function drawVelocity(bass, mid, treble, rms, spectralCentroid, beatDetected) {
+                ctx.globalCompositeOperation = 'lighter'; // For glowing trails
+
+                velocityLines.forEach(l => {
+                    let speedInfluence = 1 + (rms / 255) * 7; // More responsive speed with RMS
+                    l.speed = l.speed * 0.9 + speedInfluence * 0.1; // Smoother speed transition (lerp)
+                    l.x += Math.cos(l.angle) * l.speed;
+                    l.y += Math.sin(l.angle) * l.speed;
+                    l.angle += (mid / 255 - 0.5) * 0.015; // Mid range influences angle more
+
+                    // Wrap around screen
+                    if (l.x < -l.length) l.x = canvas.width + l.length;
+                    if (l.x > canvas.width + l.length) l.x = -l.length;
+                    if (l.y < -l.length) l.y = canvas.height + l.length;
+                    if (l.y > canvas.height + l.length) l.y = -l.length;
+
+                    const lengthInfluence = l.length + (treble / 255) * 60; // More responsive length
+                    
+                    // Create a gradient along the line
+                    const lineGradient = ctx.createLinearGradient(l.x, l.y, l.x - Math.cos(l.angle) * lengthInfluence, l.y - Math.sin(l.angle) * lengthInfluence);
+                    const startColor = getDynamicColor(bass, mid, treble, l.angle * 180 / Math.PI, spectralCentroid);
+                    const endColor = getDynamicColor(bass, mid, treble, (l.angle * 180 / Math.PI + 60) % 360, spectralCentroid);
+                    lineGradient.addColorStop(0, startColor);
+                    lineGradient.addColorStop(1, endColor);
+
+                    ctx.beginPath();
+                    ctx.moveTo(l.x, l.y);
+                    ctx.lineTo(l.x - Math.cos(l.angle) * lengthInfluence, l.y - Math.sin(l.angle) * lengthInfluence);
+                    ctx.strokeStyle = lineGradient;
+                    ctx.lineWidth = 1 + (bass / 255) * 4; // Thicker lines with bass
+                    ctx.globalAlpha = l.alpha;
+                    ctx.stroke();
+                });
+                ctx.globalAlpha = 1;
+                ctx.globalCompositeOperation = 'source-over';
+            }
+
+            /**
+             * Draws the Odyssey theme.
+             * @param {number} bass - Bass frequency intensity.
+             * @param {number} mid - Mid frequency intensity.
+             * @param {number} treble - Treble frequency intensity.
+             * @param {number} rms - Root Mean Square (overall volume).
+             * @param {number} spectralCentroid - Perceived brightness of sound.
+             * @param {boolean} beatDetected - True if a beat was detected this frame.
+             */
+            function drawOdyssey(bass, mid, treble, rms, spectralCentroid, beatDetected) {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const baseOrbitRadius = 150 + (bass / 255) * 50; // Base radius influenced by bass
+                const particleCount = odysseyParticles.length;
+
+                ctx.globalCompositeOperation = 'lighter'; // For glowing effect
+
+                odysseyParticles.forEach((p, i) => {
+                    // Particles orbit around the center
+                    p.angle += p.speed * 0.02 + (mid / 255) * 0.0005; // Speed influenced by mid
+                    p.orbitDistance = baseOrbitRadius + (dataArray[i % bufferLength] / 255) * 30 + (rms / 255) * 20; // Distance varies with frequency and RMS
+
+                    p.x = centerX + Math.cos(p.angle) * p.orbitDistance;
+                    p.y = centerY + Math.sin(p.angle) * p.orbitDistance;
+
+                    const size = p.radius + (treble / 255) * 3 + (beatDetected ? 3 : 0); // Size influenced by treble and beat
+
+                    const color = getDynamicColor(bass, mid, treble, (i / particleCount) * 360, spectralCentroid);
+                    const glowAmount = 15 + (spectralCentroid / 5000) * 10;
+                    drawGlowCircle(p.x, p.y, size, color, glowAmount); // Draw glowing particles
+                });
+
+                // Draw a central glowing core
+                const coreRadius = 20 + (bass / 255) * 30 + (beatDetected ? 20 : 0); // Stronger bloom on beat
+                const coreColor = getDynamicColor(bass, mid, treble, 200, spectralCentroid);
+                drawGlowCircle(centerX, centerY, coreRadius, coreColor, 30 + (beatDetected ? 15 : 0));
+
+                ctx.globalCompositeOperation = 'source-over'; // Reset blend mode
+                ctx.globalAlpha = 1;
+            }
+
+            /**
+             * Draws The Wanderer (bouncing logo) theme.
+             * @param {number} bass - Bass frequency intensity.
+             * @param {number} mid - Mid frequency intensity.
+             * @param {number} treble - Treble frequency intensity.
+             * @param {number} rms - Root Mean Square (overall volume).
+             * @param {number} spectralCentroid - Perceived brightness of sound.
+             * @param {boolean} beatDetected - True if a beat was detected this frame.
+             */
+            function drawTheWanderer(bass, mid, treble, rms, spectralCentroid, beatDetected) {
+                // Clear with a slight fade for trails
+                ctx.fillStyle = 'rgba(26, 32, 44, 0.05)'; // Always dark fade
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Update position
+                wanderer.x += wanderer.dx;
+                wanderer.y += wanderer.dy;
+
+                // Bounce logic
+                let bounced = false;
+                const now = Date.now();
+                const minBounceInterval = 200; // ms to prevent rapid multiple bounces
+
+                if (wanderer.x + wanderer.width / 2 > canvas.width || wanderer.x - wanderer.width / 2 < 0) {
+                    if (now - wanderer.lastBounceTime > minBounceInterval) {
+                        wanderer.dx *= -1;
+                        bounced = true;
+                    }
+                }
+                if (wanderer.y + wanderer.height / 2 > canvas.height || wanderer.y - wanderer.height / 2 < 0) {
+                    if (now - wanderer.lastBounceTime > minBounceInterval) {
+                        wanderer.dy *= -1;
+                        bounced = true;
+                    }
+                }
+
+                if (bounced) {
+                    wanderer.bounceCount++;
+                    wanderer.lastBounceTime = now;
+                    // Change color on bounce
+                    wanderer.colorHue = (wanderer.colorHue + 60) % 360; // Cycle through colors
+                    // Add a subtle "pop" effect
+                    wanderer.width *= 1.1; // Increased pop
+                    wanderer.height *= 1.1;
+                    setTimeout(() => {
+                        wanderer.width /= 1.1;
+                        wanderer.height /= 1.1;
+                    }, 150); // Shorter duration for snappier pop
+                }
+
+                // Ensure it stays within bounds after bounce
+                wanderer.x = Math.max(wanderer.width / 2, Math.min(canvas.width - wanderer.width / 2, wanderer.x));
+                wanderer.y = Math.max(wanderer.height / 2, Math.min(canvas.height - wanderer.height / 2, wanderer.y));
+
+                // Audio influence on size/glow
+                const currentSizeInfluence = (bass / 255) * 30; // Bass makes it pulse
+                const currentGlowInfluence = (mid / 255) * 20; // Mid makes it glow more
+
+                // Draw the "DVD logo" (a rounded rectangle for simplicity)
+                const currentWidth = wanderer.width + currentSizeInfluence;
+                const currentHeight = wanderer.height + currentSizeInfluence * 0.5; // Maintain aspect ratio somewhat
+
+                // Corrected logoX and logoY for centering the dynamic size
+                const logoX = wanderer.x - currentWidth / 2;
+                const logoY = wanderer.y - currentHeight / 2;
+
+                ctx.beginPath();
+                ctx.roundRect(logoX, logoY, currentWidth, currentHeight, 15); // Rounded rectangle
+                ctx.fillStyle = getDynamicColor(bass, mid, treble, wanderer.colorHue, spectralCentroid);
+                ctx.shadowBlur = 10 + currentGlowInfluence + (beatDetected ? 10 : 0); // Stronger glow on beat
+                ctx.shadowColor = `hsl(${wanderer.colorHue}, 100%, 50%)`;
+                ctx.fill();
+                ctx.shadowBlur = 0; // Reset shadow for next draws
+
+                // No "AuraTune" text as requested.
+            }
+
+            /**
+             * Draws the ParticleFlow theme.
+             * @param {number} bass - Bass frequency intensity.
+             * @param {number} mid - Mid frequency intensity.
+             * @param {number} treble - Treble frequency intensity.
+             * @param {number} rms - Root Mean Square (overall volume).
+             * @param {number} spectralCentroid - Perceived brightness of sound.
+             * @param {boolean} beatDetected - True if a beat was detected this frame.
+             */
+            function drawParticleFlow(bass, mid, treble, rms, spectralCentroid, beatDetected) {
+                ctx.globalCompositeOperation = 'lighter'; // For glowing effect
+
+                // Clear with a slight fade to create trails
+                ctx.fillStyle = 'rgba(26, 32, 44, 0.08)'; // Always dark fade
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                flowParticles.forEach(p => {
+                    const angle = noise(p.x * 0.003, p.y * 0.003, Date.now() * 0.0001) * Math.PI * 2;
+                    p.directionX = Math.cos(angle);
+                    p.directionY = Math.sin(angle);
+
+                    // Music influence on speed and alpha
+                    const speed = 1 + (rms / 255) * 5; // Stronger RMS influence on speed
+                    p.x += p.directionX * speed;
+                    p.y += p.directionY * speed;
+
+                    p.size = p.baseSize + (mid / 255) * 8; // Mid-range influences size more
+                    p.alpha -= p.decay + (treble / 255) * 0.001; // Treble influences decay (faster fade)
+
+                    if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height || p.alpha <= 0) {
+                        Object.assign(p, {
+                            x: Math.random() * canvas.width,
+                            y: Math.random() * canvas.height,
+                            alpha: 1 // Reset alpha
+                        });
+                    }
+
+                    const color = getDynamicColor(bass, mid, treble, p.x / canvas.width * 360, spectralCentroid);
+                    ctx.globalAlpha = p.alpha; // Apply particle-specific alpha
+                    const glowAmount = 8 + (spectralCentroid / 5000) * 10;
+                    drawGlowCircle(p.x, p.y, p.size, color, glowAmount); // Glowing particles
+                });
+
+                // Draw faint lines between nearby particles for a "constellation" effect
+                const connectionDistance = 80; // Max distance for connection
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.05 + (rms / 255) * 0.1})`; // Faint, reactive lines
+                ctx.lineWidth = 0.5;
+                for (let i = 0; i < flowParticles.length; i++) {
+                    for (let j = i + 1; j < flowParticles.length; j++) {
+                        const p1 = flowParticles[i];
+                        const p2 = flowParticles[j];
+                        const dx = p1.x - p2.x;
+                        const dy = p1.y - p2.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+
+                        if (dist < connectionDistance) {
+                            ctx.beginPath();
+                            ctx.moveTo(p1.x, p1.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = 1; // Reset global alpha
+            }
+
+            // --- Main Animation Loop ---
+            const themeDrawFunctions = {
+                liquescent: drawLiquescent,
+                consoleDreams: drawConsoleDreams,
+                velocity: drawVelocity,
+                odyssey: drawOdyssey,
+                theWanderer: drawTheWanderer,
+                particleFlow: drawParticleFlow
+            };
+
+            /**
+             * The main animation loop.
+             * Calculates audio data and calls the current theme's drawing function.
+             */
+            function animate() {
+                animationFrameId = requestAnimationFrame(animate);
+
+                let bass = 0, mid = 0, treble = 0, rms = 0, spectralCentroid = 0;
+                let beatDetected = false;
+
+                // Only process audio data if analyser is initialized and audio is playing
+                if (isAudioContextInitialized && analyser && isPlaying && dataArray && dataArray.length > 0) {
+                    analyser.getByteFrequencyData(dataArray);
+                    
+                    // Calculate bass, mid, treble
+                    const quarter = Math.floor(bufferLength / 4); 
+                    bass = dataArray.slice(0, quarter).reduce((a, b) => a + b, 0) / quarter;
+                    mid = dataArray.slice(quarter, 2 * quarter).reduce((a, b) => a + b, 0) / quarter;
+                    treble = dataArray.slice(2 * quarter, 3 * quarter).reduce((a, b) => a + b, 0) / quarter;
+
+                    // Calculate RMS (overall volume)
+                    let sumSquares = 0;
+                    for (let i = 0; i < bufferLength; i++) {
+                        sumSquares += (dataArray[i] / 255) ** 2; // Normalize to 0-1 for RMS calculation
+                    }
+                    rms = Math.sqrt(sumSquares / bufferLength) * 255; // Scale back to 0-255
+
+                    // Calculate Spectral Centroid (perceived brightness)
+                    let weightedSum = 0;
+                    let sum = 0;
+                    for (let i = 0; i < bufferLength; i++) {
+                        weightedSum += dataArray[i] * i;
+                        sum += dataArray[i];
+                    }
+                    // Scale centroid to a more meaningful range (e.g., Hz)
+                    spectralCentroid = sum === 0 ? 0 : (weightedSum / sum) * (audioContext.sampleRate / analyser.fftSize);
+
+                    // Simple Beat Detection
+                    if (rms > lastRMS * BEAT_THRESHOLD_FACTOR && rms > 50) { // Check for significant increase and minimum volume
+                        beatDetected = true;
+                    }
+                    lastRMS = Math.max(rms, lastRMS * BEAT_DECAY_FACTOR); // Update lastRMS, decaying over time
+
+                } else {
+                    // Reset all audio analysis values if not playing or not initialized
+                    bass = mid = treble = rms = spectralCentroid = 0;
+                }
+
+                // Clear canvas completely at the start of each frame
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Then, draw the background based on the current mode (always dark now)
+                ctx.fillStyle = 'rgba(26, 32, 44, 1)'; // Opaque dark background
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Now draw the current theme on top of the cleared background
+                themeDrawFunctions[currentTheme](bass, mid, treble, rms, spectralCentroid, beatDetected);
+            }
+
+            // --- UI & Event Listeners ---
+            acceptWarningBtn.addEventListener('click', () => {
+                seizureWarning.classList.remove('visible');
+                localStorage.setItem('seizureWarningAccepted', 'true'); // Remember acceptance
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume().catch(e => console.error("Failed to resume AudioContext:", e));
+                }
+            });
+
+            audioFileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    initAudio(file);
+                }
+            });
+
+            /** Toggles the visibility of the main UI panel. */
+            function toggleUI() {
+                uiHidden = !uiHidden;
+                controlsPanel.classList.toggle('hidden', uiHidden);
+                // The credits are now part of controlsPanel, so no separate toggle needed
+            }
+
+            hideUiButton.addEventListener('click', toggleUI);
+
+            /**
+             * Switches the active visualizer theme.
+             * @param {string} theme - The name of the theme to switch to.
+             */
+            function switchTheme(theme) {
+                currentTheme = theme;
+                // Re-initialize the elements for the new theme
+                if (initFunctions[currentTheme]) {
+                    initFunctions[currentTheme]();
+                }
+            }
+            
+            themeSelector.addEventListener('change', (event) => {
+                switchTheme(event.target.value);
+            });
+
+            colorblindModeCheckbox.addEventListener('change', () => {
+                colorblindModeActive = colorblindModeCheckbox.checked;
+                colorblindTypeSelector.classList.toggle('hidden', !colorblindModeActive);
+            });
+
+            colorblindTypeSelector.addEventListener('change', (event) => {
+                colorblindType = event.target.value;
+            });
+
+            // Removed vibeButton event listener and related LLM call logic
+            // vibeButton.addEventListener('click', async () => { ... });
+
+            canvas.addEventListener('mousemove', (e) => {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            });
+
+            canvas.addEventListener('mousedown', () => {
+                isMouseDown = true;
+            });
+
+            canvas.addEventListener('mouseup', () => {
+                isMouseDown = false;
+            });
+
+            // Initial Setup
+            // Initialize audio context and analyser globally on DOMContentLoaded
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength);
+                isAudioContextInitialized = true;
+                // Connect analyser to destination immediately, even without a source yet,
+                // to ensure it's ready for getByteFrequencyData without error.
+                analyser.connect(audioContext.destination); 
+            } catch (e) {
+                console.error("Failed to initialize AudioContext or Analyser:", e);
+                // Fallback: disable audio reactivity if context fails
+                isAudioContextInitialized = false;
+                analyser = null; // Ensure analyser is null if creation failed
+                dataArray = new Uint8Array(0); // Empty array to prevent errors
+                bufferLength = 0;
+                playingNowText.textContent = "Audio features unavailable (Web Audio API error).";
+            }
+
+            setCanvasSize();
+            
+            if (localStorage.getItem('seizureWarningAccepted') === 'true') {
+                seizureWarning.classList.remove('visible');
+            } else {
+                seizureWarning.classList.add('visible');
+            }
+
+            // Start the animation loop immediately for ambient visuals
+            animate();
+
+            // Confirm script loaded and parsed
+            console.log("AuraTune script loaded and parsed successfully.");
+        });
+    </script>
+</body>
+</html>
